@@ -121,17 +121,39 @@ def check_update_in_background():
         pass
 
 def perform_update():
+    import shutil
+    import time
     from agychat.ui.colors import Colors
-    print(f"\n{Colors.CYAN}Downloading the latest version of AgyChat...{Colors.RESET}")
-    res = subprocess.run(["uv", "tool", "install", "git+https://github.com/thefarrukhdev/AgyChat.git", "--force"])
-    if res.returncode == 0:
-        print(f"\n{Colors.GREEN}Successfully updated! Please restart the app.{Colors.RESET}")
-        sys.exit(0)
+
+    repo_url = "git+https://github.com/thefarrukhdev/AgyChat.git"
+    print(f"\n{Colors.CYAN}Downloading and updating AgyChat...{Colors.RESET}")
+
+    # Determine the best package manager based on installation environment
+    if "pipx" in sys.prefix and shutil.which("pipx"):
+        cmd = ["pipx", "install", repo_url, "--force"]
+    elif shutil.which("uv"):
+        cmd = ["uv", "tool", "install", repo_url, "--force"]
+    elif shutil.which("pipx"):
+        cmd = ["pipx", "install", repo_url, "--force"]
     else:
-        print(f"\n{Colors.RED}Failed to update automatically. Please run:{Colors.RESET}")
-        print(f"{Colors.YELLOW}uv tool install git+https://github.com/thefarrukhdev/AgyChat.git --force{Colors.RESET}")
-        import time
-        time.sleep(3)
+        cmd = [sys.executable, "-m", "pip", "install", "-U", repo_url]
+
+    try:
+        res = subprocess.run(cmd)
+        if res.returncode == 0:
+            print(f"\n{Colors.GREEN}✅ Successfully updated to the latest version! Please restart AgyChat.{Colors.RESET}")
+            sys.exit(0)
+    except Exception as e:
+        print(f"\n{Colors.RED}Automatic update failed: {e}{Colors.RESET}")
+
+    print(f"\n{Colors.YELLOW}Please update manually by running one of the following:{Colors.RESET}")
+    if shutil.which("pipx"):
+        print(f"  {Colors.BOLD}pipx install {repo_url} --force{Colors.RESET}")
+    if shutil.which("uv"):
+        print(f"  {Colors.BOLD}uv tool install {repo_url} --force{Colors.RESET}")
+    print(f"  {Colors.BOLD}pip install -U {repo_url}{Colors.RESET}")
+    time.sleep(3)
+
 
 def main():
     threading.Thread(target=check_update_in_background, daemon=True).start()
