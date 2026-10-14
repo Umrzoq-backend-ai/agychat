@@ -162,7 +162,7 @@ def main():
         return
 
     if args.sync_rules:
-        print(f"{Colors.CYAN}Syncing rules from GitHub (thefarrukhdev/gemini-ai-rules)...{Colors.RESET}")
+        print(f"{Colors.CYAN}Syncing rules from GitHub (thefarrukhdev/agychat)...{Colors.RESET}")
         import sys
         sys.stdout.flush()
         count, _ = sync_rules_from_github()
@@ -545,7 +545,7 @@ def main():
                         import time
                         time.sleep(0.3)
                 elif key == 'u': # Sync from GitHub
-                    print(f"\n{Colors.CYAN}Syncing rules from GitHub (thefarrukhdev/gemini-ai-rules)...{Colors.RESET}")
+                    print(f"\n{Colors.CYAN}Syncing rules from GitHub (thefarrukhdev/agychat)...{Colors.RESET}")
                     import sys, time
                     sys.stdout.flush()
                     count, _ = sync_rules_from_github()

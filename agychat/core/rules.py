@@ -7,7 +7,7 @@ from typing import List, Dict, Tuple
 RULES_CONFIG_DIR = os.path.expanduser("~/.gemini/config/rules")
 BUNDLED_RULES_DIR = os.path.join(os.path.dirname(__file__), "..", "rules")
 
-GITHUB_RULES_REPO_RAW = "https://raw.githubusercontent.com/thefarrukhdev/gemini-ai-rules/master/rules"
+GITHUB_RULES_REPO_RAW = "https://raw.githubusercontent.com/thefarrukhdev/agychat/master/agychat/rules"
 KNOWN_RULES = [
     "senior-developer.md",
     "cli-permissions.md",

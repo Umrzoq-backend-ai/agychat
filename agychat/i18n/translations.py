@@ -74,7 +74,7 @@ TRANSLATIONS = {
         'arg_rules': 'Manage and view status of Gemini AI rules',
         'arg_install_rules': 'Install and activate all Gemini AI rules into ~/.gemini/config/rules/',
         'arg_uninstall_rules': 'Deactivate all Gemini AI rules',
-        'arg_sync_rules': 'Sync latest rules from GitHub (thefarrukhdev/gemini-ai-rules)'
+        'arg_sync_rules': 'Sync latest rules from GitHub (thefarrukhdev/agychat)'
     },
     'ru': {
         'title': 'AgyChat (Менеджер сессий Antigravity)',
@@ -151,7 +151,7 @@ TRANSLATIONS = {
         'arg_rules': 'Управление и просмотр статуса правил Gemini AI',
         'arg_install_rules': 'Установить и активировать все правила Gemini AI в ~/.gemini/config/rules/',
         'arg_uninstall_rules': 'Отключить все правила Gemini AI',
-        'arg_sync_rules': 'Синхронизировать правила с GitHub (thefarrukhdev/gemini-ai-rules)'
+        'arg_sync_rules': 'Синхронизировать правила с GitHub (thefarrukhdev/agychat)'
     },
     'uz': {
         'title': 'AgyChat (Antigravity Sessiya Menejeri)',
@@ -228,6 +228,6 @@ TRANSLATIONS = {
         'arg_rules': "Gemini AI qoidalari holatini ko'rish va boshqarish",
         'arg_install_rules': "Barcha Gemini AI qoidalarini ~/.gemini/config/rules/ ga o'rnatish va faollashtirish",
         'arg_uninstall_rules': "Barcha Gemini AI qoidalarini o'chirib qo'yish",
-        'arg_sync_rules': "Qoidalarni GitHub (thefarrukhdev/gemini-ai-rules) dan yangilash"
+        'arg_sync_rules': "Qoidalarni GitHub (thefarrukhdev/agychat) dan yangilash"
     }
 }
