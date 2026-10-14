@@ -2,10 +2,10 @@
 """
 Antigravity Account Switcher (agy-oauth-manager)
 
-File-based token manager.
-Reads/writes tokens to:
-1. ~/.cache/google-vscode-extension/auth/credentials.json (IDE)
-2. ~/.gemini/antigravity-cli/antigravity-oauth-token (CLI)
+Manages OAuth tokens across:
+1. System Keyring (service: "gemini", username: "antigravity") (used by agy CLI)
+2. ~/.gemini/antigravity-cli/antigravity-oauth-token (CLI file fallback)
+3. ~/.cache/google-vscode-extension/auth/credentials.json (Antigravity IDE)
 """
 
 import argparse
@@ -17,11 +17,13 @@ import sys
 from datetime import datetime, timezone
 
 # ─── Constants ────────────────────────────────────────────────────────────────
-GEMINI_DIR     = os.path.expanduser("~/.gemini")
-TOKEN_STORE    = os.path.join(GEMINI_DIR, "oauth_tokens.json")
-IDE_CRED_FILE  = os.path.expanduser("~/.cache/google-vscode-extension/auth/credentials.json")
-CLI_CRED_FILE  = os.path.expanduser("~/.gemini/antigravity-cli/antigravity-oauth-token")
-VSCODE_DB_PATH = os.path.expanduser("~/.config/Antigravity IDE/User/globalStorage/state.vscdb")
+GEMINI_DIR       = os.path.expanduser("~/.gemini")
+TOKEN_STORE      = os.path.join(GEMINI_DIR, "oauth_tokens.json")
+IDE_CRED_FILE    = os.path.expanduser("~/.cache/google-vscode-extension/auth/credentials.json")
+CLI_CRED_FILE    = os.path.expanduser("~/.gemini/antigravity-cli/antigravity-oauth-token")
+VSCODE_DB_PATH   = os.path.expanduser("~/.config/Antigravity IDE/User/globalStorage/state.vscdb")
+KEYRING_SERVICE  = "gemini"
+KEYRING_USERNAME = "antigravity"
 # ──────────────────────────────────────────────────────────────────────────────
 
 def setup_environment() -> None:
@@ -33,19 +35,24 @@ def extract_email_from_jwt(id_token: str) -> str:
     if not id_token:
         return ""
     try:
-        payload = id_token.split('.')[1]
+        parts = id_token.split('.')
+        if len(parts) < 2:
+            return ""
+        payload = parts[1]
         payload += '=' * (-len(payload) % 4)
         data = json.loads(base64.b64decode(payload))
         return data.get("email", "")
-    except:
+    except Exception:
         return ""
 
 def get_ide_email(cred: dict) -> str:
-    if not cred: return ""
+    if not cred or not isinstance(cred, dict):
+        return ""
     return cred.get("email") or extract_email_from_jwt(cred.get("credentials", {}).get("id_token", ""))
 
 def get_cli_email(cred: dict) -> str:
-    if not cred: return ""
+    if not cred or not isinstance(cred, dict):
+        return ""
     return extract_email_from_jwt(cred.get("id_token", ""))
 
 def load_saved_tokens() -> dict:
@@ -53,7 +60,7 @@ def load_saved_tokens() -> dict:
         try:
             with open(TOKEN_STORE, 'r') as f:
                 return json.load(f)
-        except:
+        except Exception:
             pass
     return {}
 
@@ -71,7 +78,7 @@ def read_json_file(path: str) -> dict | None:
         try:
             with open(path) as f:
                 return json.load(f)
-        except:
+        except Exception:
             pass
     return None
 
@@ -91,16 +98,91 @@ def clear_ide_cache() -> None:
         except Exception:
             pass
 
+# ─── Keyring Helpers ──────────────────────────────────────────────────────────
+
+def get_keyring_token() -> dict | None:
+    """Retrieve token from system keyring using secretstorage or keyring."""
+    try:
+        import secretstorage
+        bus = secretstorage.dbus_init()
+        collection = secretstorage.get_default_collection(bus)
+        for item in collection.search_items({'service': KEYRING_SERVICE, 'username': KEYRING_USERNAME}):
+            raw = item.get_secret().decode('utf-8')
+            return json.loads(raw)
+    except Exception:
+        pass
+
+    try:
+        import keyring
+        raw = keyring.get_password(KEYRING_SERVICE, KEYRING_USERNAME)
+        if raw:
+            return json.loads(raw)
+    except Exception:
+        pass
+
+    return None
+
+def set_keyring_token(token_data: dict) -> bool:
+    """Save token dict into system keyring, deleting duplicate items first."""
+    token_str = json.dumps(token_data)
+    try:
+        import secretstorage
+        bus = secretstorage.dbus_init()
+        collection = secretstorage.get_default_collection(bus)
+        for item in list(collection.search_items({'service': KEYRING_SERVICE, 'username': KEYRING_USERNAME})):
+            try:
+                item.delete()
+            except Exception:
+                pass
+        attributes = {'service': KEYRING_SERVICE, 'username': KEYRING_USERNAME}
+        collection.create_item(
+            "Password for 'antigravity' on 'gemini'",
+            attributes,
+            token_str.encode('utf-8'),
+            replace=True
+        )
+        return True
+    except Exception:
+        pass
+
+    try:
+        import keyring
+        keyring.set_password(KEYRING_SERVICE, KEYRING_USERNAME, token_str)
+        return True
+    except Exception:
+        pass
+
+    return False
+
+def delete_keyring_token() -> None:
+    try:
+        import secretstorage
+        bus = secretstorage.dbus_init()
+        collection = secretstorage.get_default_collection(bus)
+        for item in list(collection.search_items({'service': KEYRING_SERVICE, 'username': KEYRING_USERNAME})):
+            try:
+                item.delete()
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+    try:
+        import keyring
+        keyring.delete_password(KEYRING_SERVICE, KEYRING_USERNAME)
+    except Exception:
+        pass
+
+# ─── Synthesis Helpers ────────────────────────────────────────────────────────
+
 def synthesize_ide_from_cli(email: str, cli: dict) -> dict:
-    # CLI -> IDE
     try:
         t = cli.get("token", {})
         expiry_str = t.get("expiry", "")
-        # Very rough ISO parsing (just dropping nanosecs)
         try:
             dt = datetime.fromisoformat(expiry_str.split('.')[0] + '+00:00')
             exp_ms = int(dt.timestamp() * 1000)
-        except:
+        except Exception:
             exp_ms = 0
             
         return {
@@ -113,13 +195,24 @@ def synthesize_ide_from_cli(email: str, cli: dict) -> dict:
                 "expiry_date": exp_ms
             }
         }
-    except:
+    except Exception:
         return {}
 
 def synthesize_cli_from_ide(ide: dict) -> dict:
-    # IDE -> CLI
     try:
         c = ide.get("credentials", {})
+        if not c and "token" in ide:
+            t = ide.get("token", {})
+            return {
+                "token": {
+                    "access_token": t.get("access_token", ""),
+                    "token_type": t.get("token_type", "Bearer"),
+                    "refresh_token": t.get("refresh_token", ""),
+                    "expiry": t.get("expiry", "")
+                },
+                "auth_method": "consumer",
+                "id_token": ide.get("id_token", "")
+            }
         exp_ms = c.get("expiry_date", 0)
         if exp_ms:
             dt = datetime.fromtimestamp(exp_ms / 1000.0, tz=timezone.utc)
@@ -137,48 +230,34 @@ def synthesize_cli_from_ide(ide: dict) -> dict:
             "auth_method": "consumer",
             "id_token": c.get("id_token", "")
         }
-    except:
+    except Exception:
         return {}
 
-def cmd_save_current() -> None:
-    tokens = load_saved_tokens()
-    ide_cred = read_json_file(IDE_CRED_FILE)
+# ─── Core Account Functions ───────────────────────────────────────────────────
+
+def get_current_email() -> str:
+    # 1. Keyring (preferred by agy CLI)
+    keyring_tok = get_keyring_token()
+    if keyring_tok:
+        email = get_cli_email(keyring_tok)
+        if email:
+            return email
+            
+    # 2. CLI token file
     cli_cred = read_json_file(CLI_CRED_FILE)
-    
-    ide_email = get_ide_email(ide_cred)
-    cli_email = get_cli_email(cli_cred)
-    
-    saved_any = False
-    
-    if ide_email:
-        if ide_email not in tokens:
-            tokens[ide_email] = {}
-        # Keep backwards compatibility for AgyChat cmd_status JSON restoring
-        tokens[ide_email]["email"] = ide_email
-        tokens[ide_email]["credentials"] = ide_cred.get("credentials", {})
-        tokens[ide_email]["ide_format"] = ide_cred
-        if not tokens[ide_email].get("cli_format"):
-            tokens[ide_email]["cli_format"] = synthesize_cli_from_ide(ide_cred)
-        saved_any = True
-        
-    if cli_email:
-        if cli_email not in tokens:
-            tokens[cli_email] = {}
-        tokens[cli_email]["cli_format"] = cli_cred
-        if not tokens[cli_email].get("ide_format"):
-            ide_syn = synthesize_ide_from_cli(cli_email, cli_cred)
-            tokens[cli_email]["ide_format"] = ide_syn
-            tokens[cli_email]["email"] = ide_syn.get("email", "")
-            tokens[cli_email]["credentials"] = ide_syn.get("credentials", {})
-        saved_any = True
-        
-    if saved_any:
-        save_tokens(tokens)
-        emails = list(set(filter(None, [ide_email, cli_email])))
-        print(f"✅ Success! Saved token(s) for: {', '.join(emails)}")
-    else:
-        print("❌ No active accounts found in IDE or CLI.", file=sys.stderr)
-        sys.exit(1)
+    if cli_cred:
+        email = get_cli_email(cli_cred)
+        if email:
+            return email
+            
+    # 3. IDE credentials file
+    ide_cred = read_json_file(IDE_CRED_FILE)
+    if ide_cred:
+        email = get_ide_email(ide_cred)
+        if email:
+            return email
+            
+    return ""
 
 def set_active_email(email: str) -> None:
     tokens = load_saved_tokens()
@@ -188,20 +267,71 @@ def set_active_email(email: str) -> None:
         
     acct = tokens[email]
     
-    ide_format = acct.get("ide_format")
-    if not ide_format and "credentials" in acct:
-        ide_format = {"email": email, "credentials": acct["credentials"]}
-        
     cli_format = acct.get("cli_format")
-    if not cli_format and ide_format:
-        cli_format = synthesize_cli_from_ide(ide_format)
+    if not cli_format or not isinstance(cli_format, dict):
+        cli_format = synthesize_cli_from_ide(acct.get("ide_format") or acct)
+        
+    if isinstance(cli_format, dict):
+        if not cli_format.get("auth_method"):
+            cli_format["auth_method"] = "consumer"
+            
+    ide_format = acct.get("ide_format")
+    if not ide_format or not isinstance(ide_format, dict) or "credentials" not in ide_format:
+        ide_format = synthesize_ide_from_cli(email, cli_format)
+        
+    if cli_format:
+        set_keyring_token(cli_format)
+        write_json_file(CLI_CRED_FILE, cli_format)
         
     if ide_format:
         write_json_file(IDE_CRED_FILE, ide_format)
-    if cli_format:
-        write_json_file(CLI_CRED_FILE, cli_format)
         
     clear_ide_cache()
+
+def cmd_save_current() -> None:
+    tokens = load_saved_tokens()
+    keyring_cred = get_keyring_token()
+    cli_cred = read_json_file(CLI_CRED_FILE)
+    ide_cred = read_json_file(IDE_CRED_FILE)
+    
+    keyring_email = get_cli_email(keyring_cred)
+    cli_email = get_cli_email(cli_cred)
+    ide_email = get_ide_email(ide_cred)
+    
+    saved_any = False
+    
+    source_cli = keyring_cred if keyring_email else cli_cred
+    source_email = keyring_email or cli_email
+    
+    if source_email and source_cli:
+        if source_email not in tokens:
+            tokens[source_email] = {}
+        if not source_cli.get("auth_method"):
+            source_cli["auth_method"] = "consumer"
+        tokens[source_email]["email"] = source_email
+        tokens[source_email]["cli_format"] = source_cli
+        ide_syn = synthesize_ide_from_cli(source_email, source_cli)
+        tokens[source_email]["ide_format"] = ide_syn
+        tokens[source_email]["credentials"] = ide_syn.get("credentials", {})
+        saved_any = True
+        
+    if ide_email and ide_cred:
+        if ide_email not in tokens:
+            tokens[ide_email] = {}
+        tokens[ide_email]["email"] = ide_email
+        tokens[ide_email]["credentials"] = ide_cred.get("credentials", {})
+        tokens[ide_email]["ide_format"] = ide_cred
+        if not tokens[ide_email].get("cli_format"):
+            tokens[ide_email]["cli_format"] = synthesize_cli_from_ide(ide_cred)
+        saved_any = True
+        
+    if saved_any:
+        save_tokens(tokens)
+        emails = list(set(filter(None, [keyring_email, cli_email, ide_email])))
+        print(f"✅ Success! Saved token(s) for: {', '.join(emails)}")
+    else:
+        print("❌ No active accounts found in Keyring, CLI, or IDE.", file=sys.stderr)
+        sys.exit(1)
 
 def cmd_switch(email: str) -> None:
     set_active_email(email)
@@ -214,13 +344,8 @@ def cmd_rotate() -> None:
         sys.exit(1)
         
     emails = list(tokens.keys())
+    current_email = get_current_email()
     
-    cli_cred = read_json_file(CLI_CRED_FILE)
-    current_email = get_cli_email(cli_cred)
-    if not current_email:
-        ide_cred = read_json_file(IDE_CRED_FILE)
-        current_email = get_ide_email(ide_cred)
-        
     try:
         idx = emails.index(current_email)
         next_idx = (idx + 1) % len(emails)
@@ -232,19 +357,13 @@ def cmd_rotate() -> None:
     print(f"ECHO_EMAIL:{next_email}")
 
 def cmd_current() -> None:
-    cli_cred = read_json_file(CLI_CRED_FILE)
-    email = get_cli_email(cli_cred)
-    if not email:
-        ide_cred = read_json_file(IDE_CRED_FILE)
-        email = get_ide_email(ide_cred)
-        
+    email = get_current_email()
     if email:
         print(f"ECHO_EMAIL:{email}")
     else:
         print("No active account.", file=sys.stderr)
 
-
-# ── ANSI helpers ──────────────────────────────────────────────────────────────
+# ─── ANSI helpers ─────────────────────────────────────────────────────────────
 BOLD    = "\033[1m"
 DIM     = "\033[2m"
 RESET   = "\033[0m"
@@ -260,11 +379,6 @@ def _pct_color(pct: float) -> str:
     elif pct >= 25: return YELLOW
     return RED
 
-def _make_bar(pct: float, width: int = 30) -> str:
-    filled = round(pct / 100 * width)
-    bar = "█" * filled + "░" * (width - filled)
-    return f"{DIM}[{RESET}{_pct_color(pct)}{bar}{RESET}{DIM}]{RESET}"
-
 def _format_refresh(iso_ts: str) -> str:
     try:
         dt = datetime.fromisoformat(iso_ts.replace("Z", "+00:00"))
@@ -274,7 +388,8 @@ def _format_refresh(iso_ts: str) -> str:
         total_min = int(diff.total_seconds() / 60)
         h, m = divmod(total_min, 60)
         return f"Refreshes in {h}h {m}m" if h > 0 else f"Refreshes in {m}m"
-    except: return ""
+    except Exception:
+        return ""
 
 def _parse_usage_tsv(output: str) -> dict:
     groups = {}
@@ -284,21 +399,18 @@ def _parse_usage_tsv(output: str) -> dict:
         group, ltype, pct_str = parts[0].strip(), parts[1].strip(), parts[2].strip().replace('%', '')
         iso_ts = parts[3].strip() if len(parts) > 3 else ""
         try: pct = float(pct_str)
-        except: continue
+        except Exception: continue
         if group not in groups: groups[group] = []
         groups[group].append({"type": ltype, "pct": pct, "refresh": _format_refresh(iso_ts)})
     return groups
-
 
 def cmd_auto_switch() -> int:
     tokens = load_saved_tokens()
     if not tokens:
         return 1
 
-    orig_cli = read_json_file(CLI_CRED_FILE)
-    orig_email = get_cli_email(orig_cli) or "unknown"
+    orig_email = get_current_email() or "unknown"
     
-    # helper to check limit
     def check_limits(email: str) -> dict:
         set_active_email(email)
         env = os.environ.copy()
@@ -306,7 +418,7 @@ def cmd_auto_switch() -> int:
         env.pop("DISPLAY", None)
         env.pop("WAYLAND_DISPLAY", None)
         try:
-            res = subprocess.run(["agy", "-p", "/usage"], capture_output=True, text=True, timeout=10, stdin=subprocess.DEVNULL, env=env)
+            res = subprocess.run(["agy", "-p", "/usage"], capture_output=True, text=True, timeout=12, stdin=subprocess.DEVNULL, env=env)
             if res.returncode == 0 and res.stdout.strip():
                 return _parse_usage_tsv(res.stdout)
         except subprocess.TimeoutExpired:
@@ -320,9 +432,8 @@ def cmd_auto_switch() -> int:
             pro = usage.get("pro", {})
             pro_rem = int(pro.get("remaining", -1))
             if pro_rem > 0:
-                return 0 # Current is fine
+                return 0
 
-    # Find the best account
     best_email = None
     best_pro = -1
     
@@ -342,7 +453,6 @@ def cmd_auto_switch() -> int:
         print(f"Auto-switched to {best_email} (Pro limits: {best_pro})")
         return 0
 
-    # No pro limits? Try flash
     best_flash = -1
     for email in tokens.keys():
         usage = check_limits(email)
@@ -358,7 +468,6 @@ def cmd_auto_switch() -> int:
         print(f"Auto-switched to {best_email} (Flash limits: {best_flash})")
         return 0
 
-    # Restore original if nothing better
     if orig_email in tokens:
         set_active_email(orig_email)
     return 1
@@ -369,11 +478,12 @@ def cmd_status() -> None:
         print("No accounts saved.")
         return
 
-    # Backup BOTH files
-    orig_ide = read_json_file(IDE_CRED_FILE)
+    # Backup ALL current credentials
+    orig_keyring = get_keyring_token()
     orig_cli = read_json_file(CLI_CRED_FILE)
+    orig_ide = read_json_file(IDE_CRED_FILE)
     
-    orig_email = get_cli_email(orig_cli) or get_ide_email(orig_ide)
+    orig_email = get_current_email()
 
     W = 60
     print(f"\n{BOLD}{CYAN}{'═' * W}{RESET}")
@@ -396,7 +506,7 @@ def cmd_status() -> None:
         env.pop("DISPLAY", None)
         env.pop("WAYLAND_DISPLAY", None)
         try:
-            res = subprocess.run(["agy", "-p", "/usage"], capture_output=True, text=True, timeout=10, stdin=subprocess.DEVNULL, env=env)
+            res = subprocess.run(["agy", "-p", "/usage"], capture_output=True, text=True, timeout=12, stdin=subprocess.DEVNULL, env=env)
             combined = res.stderr + res.stdout
             if "accounts.google.com" in combined or "login" in combined.lower() or "authorization" in combined.lower():
                 print(" " * 40, end="\r")
@@ -433,12 +543,10 @@ def cmd_status() -> None:
                 
                 label = "W" if "Weekly" in ltype else "5H" if "Five" in ltype else "L"
                 
-                # We prioritize Gemini 5-hour limit for sorting if available
                 if "gemini" in group_name.lower():
                     if "five" in ltype.lower() or overall_limit == 0.0:
                         overall_limit = pct
                         
-                # Compact bar (width 10 instead of 30)
                 filled = round(pct / 100 * 10)
                 bar = "█" * filled + "░" * (10 - filled)
                 c_bar = f"{DIM}[{RESET}{_pct_color(pct)}{bar}{RESET}{DIM}]{RESET}"
@@ -454,7 +562,12 @@ def cmd_status() -> None:
     sorted_tokens = {e: tokens[e] for e in sorted_emails}
     save_tokens(sorted_tokens)
 
-    # Restore BOTH files
+    # Restore credentials to state before cmd_status
+    if orig_keyring:
+        set_keyring_token(orig_keyring)
+    else:
+        delete_keyring_token()
+
     if orig_ide: write_json_file(IDE_CRED_FILE, orig_ide)
     elif os.path.exists(IDE_CRED_FILE): os.remove(IDE_CRED_FILE)
     
@@ -469,9 +582,24 @@ def cmd_delete(email: str) -> None:
     if email not in tokens:
         print(f"❌ Account '{email}' not in store.", file=sys.stderr)
         sys.exit(1)
+        
     del tokens[email]
     save_tokens(tokens)
-    print(f"✅ Deleted account: {email}")
+    
+    current_email = get_current_email()
+    if current_email == email:
+        if tokens:
+            next_email = list(tokens.keys())[0]
+            set_active_email(next_email)
+            print(f"✅ Deleted {email}. Active account switched to {next_email}.")
+        else:
+            delete_keyring_token()
+            if os.path.exists(CLI_CRED_FILE): os.remove(CLI_CRED_FILE)
+            if os.path.exists(IDE_CRED_FILE): os.remove(IDE_CRED_FILE)
+            clear_ide_cache()
+            print(f"✅ Deleted {email}. No saved accounts remaining.")
+    else:
+        print(f"✅ Deleted account: {email}")
 
 def main() -> None:
     parser = argparse.ArgumentParser()

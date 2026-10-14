@@ -17,7 +17,17 @@ from agychat.core.session import (
 from agychat.core.db import invalidate_session, update_session_meta
 from agychat.core.input import read_key
 from agychat.ui.accounts_table import print_accounts_table
-from agychat.core.accounts import get_saved_accounts, get_current_account
+from agychat.core.accounts import get_saved_accounts, get_current_account, switch_account
+from agychat.ui.rules_table import print_rules_table
+from agychat.core.rules import (
+    get_available_rules,
+    install_rule,
+    uninstall_rule,
+    toggle_rule,
+    install_all_rules,
+    uninstall_all_rules,
+    sync_rules_from_github,
+)
 
 def ui_delete_session(session: Dict):
     print(f"\n{Colors.RED}{_t('warn_del_session', id=Colors.BOLD+session['id'][:8]+Colors.RESET)}")
@@ -135,7 +145,34 @@ def main():
     parser.add_argument("--clear-all", action="store_true", help=_t('arg_clear_all'))
     parser.add_argument("--list", action="store_true", help=_t('arg_list'))
     parser.add_argument("--lang", choices=['en', 'ru', 'uz'], help=_t('arg_lang'))
+    parser.add_argument("-r", "--rules", action="store_true", help=_t('arg_rules'))
+    parser.add_argument("--install-rules", action="store_true", help=_t('arg_install_rules'))
+    parser.add_argument("--uninstall-rules", action="store_true", help=_t('arg_uninstall_rules'))
+    parser.add_argument("--sync-rules", action="store_true", help=_t('arg_sync_rules'))
     args = parser.parse_args()
+
+    if args.install_rules:
+        count, total = install_all_rules()
+        print(f"{Colors.GREEN}{_t('rules_installed_all', n=count, total=total)}{Colors.RESET}")
+        return
+
+    if args.uninstall_rules:
+        count, total = uninstall_all_rules()
+        print(f"{Colors.YELLOW}{_t('rules_uninstalled_all', n=count)}{Colors.RESET}")
+        return
+
+    if args.sync_rules:
+        print(f"{Colors.CYAN}Syncing rules from GitHub (thefarrukhdev/gemini-ai-rules)...{Colors.RESET}")
+        import sys
+        sys.stdout.flush()
+        count, _ = sync_rules_from_github()
+        print(f"{Colors.GREEN}{_t('rules_sync_success', n=count)}{Colors.RESET}")
+        return
+
+    if args.rules:
+        rules = get_available_rules()
+        print_rules_table(rules, selected_idx=-1)
+        return
 
     sessions = get_sessions(search_query=args.search)
     total_count = len(sessions)
@@ -191,6 +228,7 @@ def main():
     view_mode = "CHATS"
     is_searching = False
     accounts_selected_idx = 0
+    rules_selected_idx = 0
     selected_idx = 0
     input_buffer = ""
     current_search_query = args.search or ""
@@ -248,6 +286,9 @@ def main():
                     continue
                 elif key == 'a' and not input_buffer:
                     view_mode = "ACCOUNTS"
+                    continue
+                elif key == 'r' and not input_buffer:
+                    view_mode = "RULES"
                     continue
                 elif key == 's' and not input_buffer:
                     is_searching = True
@@ -328,7 +369,9 @@ def main():
                     print(f"  {Colors.BOLD}[  s  ]{Colors.RESET} Live search through prompts and tags")
                     print(f"  {Colors.BOLD}[  t  ]{Colors.RESET} Add or remove a tag from a session")
                     print(f"  {Colors.BOLD}[  p  ]{Colors.RESET} Pin or unpin a session")
-                    print(f"  {Colors.BOLD}[  a  ]{Colors.RESET} Open Account Manager (Rotate, Save, Status)")
+                    print(f"  {Colors.BOLD}[  a  ]{Colors.RESET} Open Account Manager (Switch, Add, Limits)")
+                    print(f"  {Colors.BOLD}[  r  ]{Colors.RESET} Open AI Rules Manager (Enable/Disable Senior Rules)")
+                    print(f"  {Colors.BOLD}[ Tab ]{Colors.RESET} Cycle between Chats, Accounts, and Rules")
                     print(f"  {Colors.BOLD}[  q  ]{Colors.RESET} Quit the application\n")
                     print(f"{Colors.DIM}Press any key to return...{Colors.RESET}")
                     sys.stdout.flush()
@@ -346,15 +389,21 @@ def main():
             
             print_accounts_table(saved, curr, accounts_selected_idx)
             
-            print(f" {Colors.BOLD}{Colors.CYAN}Accounts ⚙️ : {Colors.RESET}{Colors.DIM}[Enter] Switch  |  [a] Add  |  [d] Delete  |  [c] Limits  |  [Tab] Back{Colors.RESET} ", end="")
+            print(f" {Colors.BOLD}{Colors.CYAN}Accounts ⚙️ : {Colors.RESET}{Colors.DIM}[Enter] Switch  |  [a] Add  |  [d] Delete  |  [c] Limits  |  [r] Rules  |  [Tab] Next{Colors.RESET} ", end="")
             import sys
             sys.stdout.flush()
             
             try:
                 key = read_key()
                 if key == '\t':
-                    view_mode = "CHATS"
+                    view_mode = "RULES"
                     continue
+                elif key == 'r':
+                    view_mode = "RULES"
+                    continue
+                elif key == 'c' and not input_buffer:
+                    # check limits if pressed, or if not, can be handled
+                    pass
                 elif key == '\x1b[A': # UP
                     if accounts_selected_idx > 0:
                         accounts_selected_idx -= 1
@@ -421,27 +470,93 @@ def main():
                 elif key in ('\n', '\r'):
                     if len(saved) > 0 and 0 <= accounts_selected_idx < len(saved):
                         email_to_switch = saved[accounts_selected_idx]
-                        import subprocess, shutil, time
-                        bin_path = shutil.which("agy-oauth-manager")
-                        if bin_path:
-                            print(f"\n{Colors.CYAN}Switching to {email_to_switch}...{Colors.RESET}")
-                            import sys
-                            sys.stdout.flush()
-                            subprocess.run([bin_path, "--switch", email_to_switch])
-                            time.sleep(1)
+                        print(f"\n{Colors.CYAN}Switching to {email_to_switch}...{Colors.RESET}")
+                        import sys, time
+                        sys.stdout.flush()
+                        ok, msg = switch_account(email_to_switch)
+                        if ok:
+                            print(f"{Colors.GREEN}{msg or 'Switched successfully!'}{Colors.RESET}")
+                        else:
+                            print(f"{Colors.RED}{msg or 'Switch failed'}{Colors.RESET}")
+                        time.sleep(1)
                 elif key.isdigit():
                     idx = int(key) - 1
                     if len(saved) > 0 and 0 <= idx < len(saved):
                         email_to_switch = saved[idx]
-                        import subprocess, shutil, time
-                        bin_path = shutil.which("agy-oauth-manager")
-                        if bin_path:
-                            print(f"\n{Colors.CYAN}Switching to {email_to_switch}...{Colors.RESET}")
-                            import sys
-                            sys.stdout.flush()
-                            subprocess.run([bin_path, "--switch", email_to_switch])
-                            time.sleep(1)
+                        print(f"\n{Colors.CYAN}Switching to {email_to_switch}...{Colors.RESET}")
+                        import sys, time
+                        sys.stdout.flush()
+                        ok, msg = switch_account(email_to_switch)
+                        if ok:
+                            print(f"{Colors.GREEN}{msg or 'Switched successfully!'}{Colors.RESET}")
+                        else:
+                            print(f"{Colors.RED}{msg or 'Switch failed'}{Colors.RESET}")
+                        time.sleep(1)
                 elif key in ('q', 'Q', '\x1b'):
-                    break
+                    view_mode = "CHATS"
+                    continue
             except (KeyboardInterrupt, EOFError):
                 break
+        elif view_mode == "RULES":
+            rules = get_available_rules()
+            if rules_selected_idx >= len(rules):
+                rules_selected_idx = max(0, len(rules) - 1)
+            if rules_selected_idx < 0:
+                rules_selected_idx = 0
+            
+            print_rules_table(rules, rules_selected_idx)
+            
+            print(f" {Colors.BOLD}{Colors.CYAN}{_t('rules_prompt')}{Colors.RESET} ", end="")
+            import sys
+            sys.stdout.flush()
+            
+            try:
+                key = read_key()
+                if key == '\t':
+                    view_mode = "CHATS"
+                    continue
+                elif key == 'a':
+                    view_mode = "ACCOUNTS"
+                    continue
+                elif key == 'c':
+                    view_mode = "CHATS"
+                    continue
+                elif key == '\x1b[A': # UP
+                    if rules_selected_idx > 0:
+                        rules_selected_idx -= 1
+                elif key == '\x1b[B': # DOWN
+                    if rules_selected_idx < len(rules) - 1:
+                        rules_selected_idx += 1
+                elif key in ('\n', '\r', ' '): # Toggle
+                    if len(rules) > 0 and 0 <= rules_selected_idx < len(rules):
+                        target_rule = rules[rules_selected_idx]
+                        toggle_rule(target_rule['filename'])
+                        import time
+                        time.sleep(0.3)
+                elif key == 'i': # Install all
+                    ok_count, total = install_all_rules()
+                    print(f"\n{Colors.GREEN}{_t('rules_installed_all', n=ok_count, total=total)}{Colors.RESET}")
+                    import time
+                    time.sleep(1)
+                elif key == 'd': # Deactivate selected
+                    if len(rules) > 0 and 0 <= rules_selected_idx < len(rules):
+                        target_rule = rules[rules_selected_idx]
+                        uninstall_rule(target_rule['filename'])
+                        import time
+                        time.sleep(0.3)
+                elif key == 'u': # Sync from GitHub
+                    print(f"\n{Colors.CYAN}Syncing rules from GitHub (thefarrukhdev/gemini-ai-rules)...{Colors.RESET}")
+                    import sys, time
+                    sys.stdout.flush()
+                    count, _ = sync_rules_from_github()
+                    print(f"{Colors.GREEN}{_t('rules_sync_success', n=count)}{Colors.RESET}")
+                    time.sleep(1.2)
+                elif key in ('q', 'Q', '\x1b'):
+                    view_mode = "CHATS"
+                    continue
+            except (KeyboardInterrupt, EOFError):
+                break
+
+if __name__ == "__main__":
+    main()
+

@@ -21,6 +21,7 @@ A beautiful, zero-dependency Terminal User Interface (TUI) to view, manage, and 
 ## ✨ Features
 
 - **🔐 Multi-Account & Limits Checker**: Syncs multiple Antigravity IDE and CLI accounts seamlessly. Press `c` to instantly view and switch between accounts based on remaining limits (`flash`, `pro`, `flash_lite`) across all your emails! Gracefully handles expired tokens.
+- **🧠 Built-in Senior AI Rules Manager**: Seamlessly manages and activates elite rules from [gemini-ai-rules](https://github.com/thefarrukhdev/gemini-ai-rules) (`senior-developer`, `cli-permissions`, `security-and-secrets`). Press `r` in the TUI to toggle or use `--rules` / `--install-rules` to elevate your AI agent to an autonomous, senior-level software engineer!
 - **🌍 Multilingual (i18n)**: Fully supports English (`en`), Russian (`ru`), and Uzbek (`uz`). Auto-detects your system language or can be set manually via `--lang`.
 - **🎨 Stunning Interactive UI**: Beautiful box-drawn terminal tables with modern ANSI colors, complete with **Live Keyboard Navigation**! Use arrow keys `↑/↓` to select, `Enter` to resume, `s` for live filtering, `t` to tag, and `p` to pin right from the UI.
 - **⚡ Zero Dependencies**: Built entirely using Python's Standard Library. No external packages needed. Extremely portable.
@@ -55,9 +56,12 @@ Simply run:
 chats
 ```
 **Interactive Keybindings:**
-- `[↑/↓]`: Navigate sessions
-- `[Enter]`: Resume selected session
+- `[↑/↓]`: Navigate sessions / accounts / rules
+- `[Enter]`: Resume selected session / switch account / toggle rule
 - `[c]`: **Check limits and switch active account** (Displays limits across all saved accounts!)
+- `[a]`: Open Accounts Manager view
+- `[r]`: **Open AI Rules Manager view** (Toggle senior developer rules)
+- `[Tab]`: Cycle views (**Chats** ➔ **Accounts** ➔ **Rules**)
 - `[s]`: Live Search
 - `[t]`: Tag selected session
 - `[p]`: Pin/Unpin selected session
@@ -67,6 +71,9 @@ chats
 ### CLI Commands
 ```bash
 chats 5              # Resume session #5 immediately
+chats --rules        # View status of Gemini AI rules
+chats --install-rules# Activate all senior AI rules into ~/.gemini/config/rules/
+chats --sync-rules   # Sync latest rules from GitHub
 chats --lang uz      # Switch the UI to Uzbek permanently
 chats -t "Backend" 3 # Assign the name "Backend" to session #3
 chats --pin 3        # Pin session #3 to the top

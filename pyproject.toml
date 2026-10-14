@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "agychat"
-version = "2.0.0"
-description = "A beautiful, dependency-free CLI tool to view, search, and resume Antigravity AI sessions."
+version = "2.1.0"
+description = "A beautiful, dependency-free CLI tool to view, search, and resume Antigravity AI sessions, switch accounts, and manage AI rules."
 readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.8"
@@ -19,3 +19,7 @@ chats = "agychat.cli:main"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["agychat*"]
+
+[tool.setuptools.package-data]
+"agychat" = ["rules/*.md"]
+

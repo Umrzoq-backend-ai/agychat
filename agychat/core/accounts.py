@@ -5,6 +5,18 @@ import shutil
 
 TOKEN_FILE = os.path.expanduser("~/.gemini/oauth_tokens.json")
 
+def _get_manager_bin():
+    bin_path = shutil.which("agy-oauth-manager")
+    if bin_path:
+        return bin_path
+    local_bin = os.path.expanduser("~/.local/bin/agy-oauth-manager")
+    if os.path.exists(local_bin):
+        return local_bin
+    bundled = os.path.join(os.path.dirname(__file__), "..", "..", "scripts", "agy-oauth-manager")
+    if os.path.exists(bundled):
+        return bundled
+    return None
+
 def get_saved_accounts():
     if not os.path.exists(TOKEN_FILE):
         return []
@@ -16,7 +28,7 @@ def get_saved_accounts():
         return []
 
 def get_current_account():
-    bin_path = shutil.which("agy-oauth-manager")
+    bin_path = _get_manager_bin()
     if not bin_path:
         return None
     try:
@@ -27,8 +39,20 @@ def get_current_account():
         pass
     return None
 
+def switch_account(email: str):
+    bin_path = _get_manager_bin()
+    if not bin_path:
+        return False, "agy-oauth-manager not found"
+    try:
+        res = subprocess.run([bin_path, "--switch", email], capture_output=True, text=True)
+        if res.returncode == 0:
+            return True, res.stdout.strip()
+        return False, res.stderr.strip() or res.stdout.strip()
+    except Exception as e:
+        return False, str(e)
+
 def rotate_account():
-    bin_path = shutil.which("agy-oauth-manager")
+    bin_path = _get_manager_bin()
     if not bin_path:
         return False, "Not installed"
     try:
@@ -40,7 +64,7 @@ def rotate_account():
         return False, str(e)
 
 def save_current_account():
-    bin_path = shutil.which("agy-oauth-manager")
+    bin_path = _get_manager_bin()
     if not bin_path:
         return False, "Not installed"
     try:
@@ -51,8 +75,8 @@ def save_current_account():
     except Exception as e:
         return False, str(e)
 
-def delete_account(email):
-    bin_path = shutil.which("agy-oauth-manager")
+def delete_account(email: str):
+    bin_path = _get_manager_bin()
     if bin_path:
         try:
             res = subprocess.run([bin_path, "--delete", email], capture_output=True, text=True)
