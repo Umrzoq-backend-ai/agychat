@@ -32,21 +32,16 @@ A beautiful, zero-dependency Terminal User Interface (TUI) to view, manage, and 
 
 ## 📦 Installation
 
-We officially support installation via modern Python tool managers like `uv` or `pipx`.
+Install AgyChat directly from GitHub using `uv` (recommended) or `pipx`:
 
 ```bash
-# 1. Install the main CLI directly from GitHub using uv (or pipx)
 uv tool install git+https://github.com/thefarrukhdev/AgyChat.git
-
-# 2. Optional: Install the Multi-Account OAuth Manager
-# (Allows flawless switching between IDE & CLI accounts)
-curl -sSL https://raw.githubusercontent.com/thefarrukhdev/AgyChat/master/scripts/agy-oauth-manager -o ~/.local/bin/agy-oauth-manager
-chmod +x ~/.local/bin/agy-oauth-manager
 ```
 
-Installing the package automatically adds **three** command aliases to your terminal. You can run the tool using any of them:
-- `agychat`
-- `chats`
+Installing the package automatically provides everything you need with **zero external dependencies**:
+- `chats` — Interactive TUI for Sessions, Multi-Account Switching, Limits & AI Rules
+- `agychat` — Full CLI interface
+- `agy-oauth-manager` — Standalone headless OAuth account switcher & quotas checker
 
 ## 🛠️ Usage
 
@@ -70,15 +65,19 @@ chats
 
 ### CLI Commands
 ```bash
-chats 5              # Resume session #5 immediately
-chats --rules        # View status of Gemini AI rules
-chats --install-rules# Activate all senior AI rules into ~/.gemini/config/rules/
-chats --sync-rules   # Sync latest rules from GitHub
-chats --lang uz      # Switch the UI to Uzbek permanently
-chats -t "Backend" 3 # Assign the name "Backend" to session #3
-chats --pin 3        # Pin session #3 to the top
-chats -s "react"     # Search for "react" in your history
-chats --clear-all    # Safely clear all history
+chats 5                      # Resume session #5 immediately
+chats --accounts             # View all saved Antigravity accounts
+chats --add-account          # Auto-detect and save current login
+chats --limits               # Live rate limits across all accounts
+chats --switch-account user@gmail.com # Switch active account
+chats --rotate-account       # Quickly rotate to the next account
+chats --rules                # View status of Gemini AI rules
+chats --install-rules        # Activate all senior AI rules into ~/.gemini/config/rules/
+chats --lang uz              # Switch the UI to Uzbek permanently
+chats -t "Backend" 3         # Assign the name "Backend" to session #3
+chats --pin 3                # Pin session #3 to the top
+chats -s "react"             # Search for "react" in your history
+chats --clear-all            # Safely clear all history
 ```
 
 ## ⚙️ Architecture

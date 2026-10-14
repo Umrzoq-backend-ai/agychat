@@ -17,7 +17,16 @@ from agychat.core.session import (
 from agychat.core.db import invalidate_session, update_session_meta
 from agychat.core.input import read_key
 from agychat.ui.accounts_table import print_accounts_table
-from agychat.core.accounts import get_saved_accounts, get_current_account, switch_account
+from agychat.core.accounts import (
+    get_saved_accounts,
+    get_current_account,
+    switch_account,
+    save_current_account,
+    delete_account,
+    rotate_account,
+    print_account_status,
+    add_account_from_raw_token,
+)
 from agychat.ui.rules_table import print_rules_table
 from agychat.core.rules import (
     get_available_rules,
@@ -149,7 +158,40 @@ def main():
     parser.add_argument("--install-rules", action="store_true", help=_t('arg_install_rules'))
     parser.add_argument("--uninstall-rules", action="store_true", help=_t('arg_uninstall_rules'))
     parser.add_argument("--sync-rules", action="store_true", help=_t('arg_sync_rules'))
+    parser.add_argument("-a", "--accounts", action="store_true", help="List and manage saved Antigravity accounts")
+    parser.add_argument("--add-account", action="store_true", help="Capture and save active account login")
+    parser.add_argument("--switch-account", type=str, metavar="EMAIL", help="Switch active Antigravity account")
+    parser.add_argument("--rotate-account", action="store_true", help="Rotate to next saved Antigravity account")
+    parser.add_argument("-c", "--limits", action="store_true", help="Check quotas and limits across all saved accounts")
     args = parser.parse_args()
+
+    if args.add_account:
+        ok, msg = save_current_account()
+        print(f"{Colors.GREEN if ok else Colors.RED}{msg}{Colors.RESET}")
+        return
+
+    if args.switch_account:
+        ok, msg = switch_account(args.switch_account)
+        print(f"{Colors.GREEN if ok else Colors.RED}{msg}{Colors.RESET}")
+        return
+
+    if args.rotate_account:
+        ok, msg = rotate_account()
+        if ok:
+            print(f"{Colors.GREEN}Switched to {msg}{Colors.RESET}")
+        else:
+            print(f"{Colors.RED}{msg}{Colors.RESET}")
+        return
+
+    if args.limits:
+        print_account_status()
+        return
+
+    if args.accounts:
+        saved = get_saved_accounts()
+        curr = get_current_account()
+        print_accounts_table(saved, curr, selected_idx=-1)
+        return
 
     if args.install_rules:
         count, total = install_all_rules()
@@ -411,62 +453,58 @@ def main():
                     if accounts_selected_idx < len(saved) - 1:
                         accounts_selected_idx += 1
                 elif key == 's':
-                    import subprocess, shutil, time
-                    bin_path = shutil.which("agy-oauth-manager")
-                    if bin_path:
-                        print(f"\n{Colors.CYAN}Saving current account...{Colors.RESET}")
-                        subprocess.run([bin_path, "--save"])
-                        time.sleep(1.5)
+                    print(f"\n{Colors.CYAN}Saving active login...{Colors.RESET}")
+                    import sys, time
+                    sys.stdout.flush()
+                    ok, msg = save_current_account()
+                    print(f"{Colors.GREEN if ok else Colors.RED}{msg}{Colors.RESET}")
+                    time.sleep(1.5)
                 elif key == 'c':
-                    import subprocess, shutil
-                    bin_path = shutil.which("agy-oauth-manager")
-                    if bin_path:
-                        print(f"\n{Colors.CYAN}Checking account limits...{Colors.RESET}")
-                        subprocess.run([bin_path, "--status"])
-                        print(f"\n{Colors.DIM}Press any key to return...{Colors.RESET}")
-                        sys.stdout.flush()
-                        read_key()
+                    print_account_status()
+                    print(f"{Colors.DIM}Press any key to return...{Colors.RESET}")
+                    import sys
+                    sys.stdout.flush()
+                    read_key()
                 elif key == 'd':
                     if len(saved) > 0 and 0 <= accounts_selected_idx < len(saved):
                         email_to_del = saved[accounts_selected_idx]
                         print(f"\n{Colors.RED}Are you sure you want to delete {Colors.BOLD}{email_to_del}{Colors.RESET}{Colors.RED}? (y/N): {Colors.RESET}", end="")
+                        import sys, time
                         sys.stdout.flush()
                         confirm = input().strip().lower()
                         if confirm == 'y':
-                            from agychat.core.accounts import delete_account
-                            delete_account(email_to_del)
-                            print(f"{Colors.GREEN}Account {email_to_del} deleted.{Colors.RESET}")
-                            import time
+                            ok, msg = delete_account(email_to_del)
+                            print(f"{Colors.GREEN if ok else Colors.RED}{msg}{Colors.RESET}")
                             time.sleep(1)
                 elif key == 'a':
-                    import subprocess, shutil, time
-                    bin_path = shutil.which("agy-oauth-manager")
-                    if not bin_path:
-                        print(f"\n{Colors.RED}agy-oauth-manager not found in PATH.{Colors.RESET}")
-                        print(f"{Colors.DIM}Press any key to continue...{Colors.RESET}")
+                    print(f"\n{Colors.BOLD}{Colors.CYAN}═══ Add Antigravity Account ═══{Colors.RESET}")
+                    print(f"  {Colors.BOLD}[1]{Colors.RESET} Auto-detect & save active login (IDE / CLI / Keyring)")
+                    print(f"  {Colors.BOLD}[2]{Colors.RESET} Paste token JSON manually")
+                    print(f"  {Colors.BOLD}[q/Esc]{Colors.RESET} Cancel")
+                    print(f"\n{Colors.DIM}Choose option [1/2]: {Colors.RESET}", end="")
+                    import sys, time
+                    sys.stdout.flush()
+                    opt = read_key()
+                    if opt in ('1', '\n', '\r', ' '):
+                        print(f"\n{Colors.CYAN}Detecting active account...{Colors.RESET}")
                         sys.stdout.flush()
-                        read_key()
-                    else:
-                        print(f"\n{Colors.BOLD}{Colors.CYAN}═══ Add New Account ═══{Colors.RESET}")
-                        print(f"{Colors.YELLOW}Steps:{Colors.RESET}")
-                        print(f"  1. Open Antigravity IDE (or CLI in another terminal) and sign in")
-                        print(f"  2. Come back here and press {Colors.BOLD}[Enter]{Colors.RESET} to save that account")
-                        print(f"  3. Or press {Colors.BOLD}[Esc]{Colors.RESET} to cancel")
-                        print(f"\n{Colors.DIM}Waiting for you...{Colors.RESET} ", end="")
-                        sys.stdout.flush()
-                        confirm_key = read_key()
-                        if confirm_key in ('\n', '\r'):
-                            print(f"\n{Colors.CYAN}Saving account...{Colors.RESET}")
-                            sys.stdout.flush()
-                            result = subprocess.run([bin_path, "--save"], capture_output=True, text=True)
-                            if result.returncode == 0:
-                                print(f"{Colors.GREEN}{result.stdout.strip()}{Colors.RESET}")
-                            else:
-                                print(f"{Colors.RED}{result.stderr.strip() or result.stdout.strip()}{Colors.RESET}")
-                            time.sleep(2)
+                        ok, msg = save_current_account()
+                        if ok:
+                            print(f"{Colors.GREEN}✅ {msg}{Colors.RESET}")
                         else:
-                            print(f"\n{Colors.DIM}Cancelled.{Colors.RESET}")
-                            time.sleep(0.5)
+                            print(f"{Colors.YELLOW}⚠️  {msg}{Colors.RESET}")
+                            print(f"{Colors.DIM}💡 Tip: Sign in using Antigravity IDE or run 'agy' in a terminal first, then press [a] again.{Colors.RESET}")
+                        time.sleep(2)
+                    elif opt == '2':
+                        print(f"\n{Colors.CYAN}Paste token JSON and press Enter:{Colors.RESET}")
+                        token_input = input().strip()
+                        if token_input:
+                            ok, msg = add_account_from_raw_token(token_input)
+                            print(f"{Colors.GREEN if ok else Colors.RED}{msg}{Colors.RESET}")
+                            time.sleep(1.5)
+                    else:
+                        print(f"\n{Colors.DIM}Cancelled.{Colors.RESET}")
+                        time.sleep(0.5)
                 elif key in ('\n', '\r'):
                     if len(saved) > 0 and 0 <= accounts_selected_idx < len(saved):
                         email_to_switch = saved[accounts_selected_idx]
