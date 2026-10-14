@@ -39,8 +39,7 @@ uv tool install git+https://github.com/thefarrukhdev/AgyChat.git
 ```
 
 Installing the package automatically provides everything you need with **zero external dependencies**:
-- `chats` — Interactive TUI for Sessions, Multi-Account Switching, Limits & AI Rules
-- `agychat` — Full CLI interface
+- `agychat` — Interactive TUI for Sessions, Multi-Account Switching, Limits & AI Rules
 - `agy-oauth-manager` — Standalone headless OAuth account switcher & quotas checker
 
 ## 🛠️ Usage
@@ -48,7 +47,7 @@ Installing the package automatically provides everything you need with **zero ex
 ### Interactive TUI Mode
 Simply run:
 ```bash
-chats
+agychat
 ```
 **Interactive Keybindings:**
 - `[↑/↓]`: Navigate sessions / accounts / rules
@@ -65,19 +64,19 @@ chats
 
 ### CLI Commands
 ```bash
-chats 5                      # Resume session #5 immediately
-chats --accounts             # View all saved Antigravity accounts
-chats --add-account          # Auto-detect and save current login
-chats --limits               # Live rate limits across all accounts
-chats --switch-account user@gmail.com # Switch active account
-chats --rotate-account       # Quickly rotate to the next account
-chats --rules                # View status of Gemini AI rules
-chats --install-rules        # Activate all senior AI rules into ~/.gemini/config/rules/
-chats --lang uz              # Switch the UI to Uzbek permanently
-chats -t "Backend" 3         # Assign the name "Backend" to session #3
-chats --pin 3                # Pin session #3 to the top
-chats -s "react"             # Search for "react" in your history
-chats --clear-all            # Safely clear all history
+agychat 5                      # Resume session #5 immediately
+agychat --accounts             # View all saved Antigravity accounts
+agychat --add-account          # Auto-detect and save current login
+agychat --limits               # Live rate limits across all accounts
+agychat --switch-account user@gmail.com # Switch active account
+agychat --rotate-account       # Quickly rotate to the next account
+agychat --rules                # View status of Gemini AI rules
+agychat --install-rules        # Activate all senior AI rules into ~/.gemini/config/rules/
+agychat --lang uz              # Switch the UI to Uzbek permanently
+agychat -t "Backend" 3         # Assign the name "Backend" to session #3
+agychat --pin 3                # Pin session #3 to the top
+agychat -s "react"             # Search for "react" in your history
+agychat --clear-all            # Safely clear all history
 ```
 
 ## ⚙️ Architecture
