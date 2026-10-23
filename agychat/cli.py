@@ -108,7 +108,7 @@ def check_update_in_background():
     global UPDATE_AVAILABLE
     try:
         from agychat import VERSION
-        url = "https://raw.githubusercontent.com/thefarrukhdev/AgyChat/master/agychat/__init__.py"
+        url = "https://raw.githubusercontent.com/Umrzoq-backend-ai/agychat/master/agychat/__init__.py"
         req = urllib.request.urlopen(url, timeout=3)
         content = req.read().decode('utf-8')
         for line in content.splitlines():
@@ -125,7 +125,7 @@ def perform_update():
     import time
     from agychat.ui.colors import Colors
 
-    repo_url = "git+https://github.com/thefarrukhdev/AgyChat.git"
+    repo_url = "git+https://github.com/Umrzoq-backend-ai/agychat.git"
     print(f"\n{Colors.CYAN}Downloading and updating AgyChat...{Colors.RESET}")
 
     # Determine the best package manager based on installation environment
@@ -226,7 +226,7 @@ def main():
         return
 
     if args.sync_rules:
-        print(f"{Colors.CYAN}Syncing rules from GitHub (thefarrukhdev/agychat)...{Colors.RESET}")
+        print(f"{Colors.CYAN}Syncing rules from GitHub (Umrzoq-backend-ai/agychat)...{Colors.RESET}")
         import sys
         sys.stdout.flush()
         count, _ = sync_rules_from_github()
@@ -605,7 +605,7 @@ def main():
                         import time
                         time.sleep(0.3)
                 elif key == 'u': # Sync from GitHub
-                    print(f"\n{Colors.CYAN}Syncing rules from GitHub (thefarrukhdev/agychat)...{Colors.RESET}")
+                    print(f"\n{Colors.CYAN}Syncing rules from GitHub (Umrzoq-backend-ai/agychat)...{Colors.RESET}")
                     import sys, time
                     sys.stdout.flush()
                     count, _ = sync_rules_from_github()

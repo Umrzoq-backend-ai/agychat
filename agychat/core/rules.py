@@ -7,7 +7,7 @@ from typing import List, Dict, Tuple
 RULES_CONFIG_DIR = os.path.expanduser("~/.gemini/config/rules")
 BUNDLED_RULES_DIR = os.path.join(os.path.dirname(__file__), "..", "rules")
 
-GITHUB_RULES_REPO_RAW = "https://raw.githubusercontent.com/thefarrukhdev/agychat/master/agychat/rules"
+GITHUB_RULES_REPO_RAW = "https://raw.githubusercontent.com/Umrzoq-backend-ai/agychat/master/agychat/rules"
 KNOWN_RULES = [
     "senior-developer.md",
     "cli-permissions.md",
@@ -204,7 +204,7 @@ def download_rule_from_github(filename: str) -> Tuple[bool, str]:
 def sync_rules_from_github() -> Tuple[int, List[str]]:
     """
     Sync and update all standard rules from the GitHub repository:
-    thefarrukhdev/gemini-ai-rules
+    Umrzoq-backend-ai/agychat
     """
     synced = []
     for fname in KNOWN_RULES:

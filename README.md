@@ -35,7 +35,7 @@ A beautiful, zero-dependency Terminal User Interface (TUI) to view, manage, and 
 Install AgyChat directly from GitHub using `uv` (recommended) or `pipx`:
 
 ```bash
-uv tool install git+https://github.com/thefarrukhdev/AgyChat.git
+uv tool install git+https://github.com/Umrzoq-backend-ai/agychat.git
 ```
 
 Installing the package automatically provides everything you need with **zero external dependencies**:
@@ -88,7 +88,7 @@ AgyChat follows strict **SOLID** and **DRY** principles, modularized into a prof
 - `cli.py` — The core event loop, live search, and CLI argument parsing.
 
 ## 🤝 Contributing
-Contributions, issues, and feature requests are welcome! Feel free to check the [issues page](https://github.com/thefarrukhdev/AgyChat/issues).
+Contributions, issues, and feature requests are welcome! Feel free to check the [issues page](https://github.com/Umrzoq-backend-ai/agychat/issues).
 
 ## 📜 License
 
