@@ -10,7 +10,7 @@ readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.8"
 authors = [
-    { name = "Umrzoq-backend-ai", email = "" }
+    { name = "Umrzoq-backend-ai", email = "school21dev@gmail.com" }
 ]
 # Zero external runtime dependencies — only Python stdlib is used.
 dependencies = []
